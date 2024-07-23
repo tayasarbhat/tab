@@ -1,56 +1,76 @@
 // Function to shuffle and download numbers
 function shuffleAndDownload() {
-    const inputNumber = document.getElementById('inputNumber').value.trim();
+    const inputNumbers = document.getElementById('inputNumber').value.trim().split(',');
 
     // Validate input
-    if (inputNumber.length !== 10 || !/^\d{10}$/.test(inputNumber)) {
-        alert("Please enter a valid 10-digit number.");
+    if (inputNumbers.length > 500) {
+        alert("Please enter up to 50 numbers.");
         return;
     }
 
-    const prefixes = ["050", "052", "054", "056", "058"];
-    const numUniqueNumbers = 3000;
-    let shuffledNumbers = new Set();
-    let numGenerated = 0;
+    for (let num of inputNumbers) {
+        if (num.length !== 10 || !/^\d{10}$/.test(num)) {
+            alert("Please ensure all numbers are valid 10-digit numbers.");
+            return;
+        }
+    }
+
+    const prefixes = ["050", "055", "054", "056",];
+    const numUniqueNumbers = 1000;
 
     // Additional digits to incorporate in shuffling
-    const additionalDigits = ['0','1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    const additionalDigits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
     // Mapping for interesting patterns
     const patternMapping = {
         '0': '00', '1': '11', '2': '22', '3': '33', '4': '44',
-        '5': '55', '6': '66', '7': '77', '8': '88', '9': '99' ,'12': '21', '123': '321'
+        '5': '55', '6': '66', '7': '77', '8': '88', '9': '99', '12': '21', '123': '321'
     };
 
     // Generate a batch of shuffled numbers
-    function generateBatch() {
-        return new Promise((resolve, reject) => {
-            let batchGenerated = 0;
-            while (batchGenerated < numUniqueNumbers && numGenerated < numUniqueNumbers) {
-                prefixes.forEach(prefix => {
-                    const shuffledNumber = shuffleNumber(inputNumber, prefix, additionalDigits, patternMapping);
-                    if (!shuffledNumbers.has(shuffledNumber)) {
-                        shuffledNumbers.add(shuffledNumber);
-                        batchGenerated++;
-                        numGenerated++;
+    function generateBatch(inputNumber) {
+        let shuffledNumbers = new Set();
+        let numGenerated = 0;
+
+        while (shuffledNumbers.size < numUniqueNumbers) {
+            prefixes.forEach(prefix => {
+                const shuffledNumber = shuffleNumber(inputNumber, prefix, additionalDigits, patternMapping);
+                if (!shuffledNumbers.has(shuffledNumber)) {
+                    shuffledNumbers.add(shuffledNumber);
+                }
+                if (shuffledNumbers.size >= numUniqueNumbers) {
+                    return;
+                }
+            });
+        }
+        return Array.from(shuffledNumbers);
+    }
+
+    // Start generating batches for each input number
+    Promise.all(inputNumbers.map(num => generateBatch(num))).then(allShuffledNumbers => {
+        const data = [];
+
+        // Prepare the data for each column
+        inputNumbers.forEach((num, index) => {
+            const columnData = [[`**${num}**`], ...allShuffledNumbers[index].map(shuffledNum => [shuffledNum])];
+            if (data.length === 0) {
+                columnData.forEach((row, rowIndex) => {
+                    data[rowIndex] = row;
+                });
+            } else {
+                columnData.forEach((row, rowIndex) => {
+                    if (data[rowIndex]) {
+                        data[rowIndex].push(row[0]);
+                    } else {
+                        data[rowIndex] = ['', ...Array(index).fill(''), row[0]];
                     }
                 });
             }
-            resolve();
         });
-    }
-
-    // Start generating batches and handle file creation
-    generateBatch().then(() => {
-        // Convert Set to array for processing
-        const shuffledArray = Array.from(shuffledNumbers);
-
-        // Filter out numbers with consecutive digits more than 3 times
-        const filteredNumbers = shuffledArray.filter(number => !hasConsecutiveDigits(number));
 
         // Create Excel workbook and sheet
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet([['Shuffled Numbers'], ...filteredNumbers.map(num => [num])]);
+        const ws = XLSX.utils.aoa_to_sheet(data);
         XLSX.utils.book_append_sheet(wb, ws, 'ShuffledNumbers');
 
         // Save Excel file
